@@ -28,12 +28,18 @@ const ENTRY_TOKEN = process.env.ENTRY_TOKEN || 'MI_TOKEN_SECRETO'
 // 🔐 Middleware de autenticación
 app.addHook('onRequest', async (req, reply) => {
   console.log('🟡 onRequest', req.url)
-  if (req.url === '/health') return
+  if (req.url === '/health' || req.url === '/') return
   const auth = req.headers['authorization']
   if (!auth || auth !== `Bearer ${ENTRY_TOKEN}`) {
     console.log('❌ No autorizado')
     return reply.code(401).send({ error: 'UNAUTHORIZED' })
   }
+})
+
+// ✅ Nueva ruta raíz para health-check de Railway
+app.get('/', async () => {
+  console.log('💓 Root OK')
+  return { ok: true, msg: 'Root alive' }
 })
 
 app.get('/health', async () => {
@@ -146,7 +152,6 @@ console.log('🌍 Variables cargadas:', {
   DEST_2_CHANNEL: process.env.DEST_2_CHANNEL
 })
 
-// ⚡ Puerto dinámico (Railway inyecta PORT automáticamente)
 const PORT = process.env.PORT || 8080
 
 try {
