@@ -128,7 +128,16 @@ app.post('/ingest', {
     return reply.code(500).send({ error: 'FETCH_FAILED' })
   }
 })
-
+console.log('🌍 Variables cargadas:', {
+  PORT: process.env.PORT,
+  ENTRY_TOKEN: process.env.ENTRY_TOKEN,
+  WATI_URL: process.env.WATI_URL,
+  WATI_TOKEN: process.env.WATI_TOKEN ? '[OK]' : '[FALTA]',
+  CHANNEL_NUMBER: process.env.CHANNEL_NUMBER,
+  DEST_2_URL: process.env.DEST_2_URL,
+  DEST_2_TOKEN: process.env.DEST_2_TOKEN ? '[OK]' : '[FALTA]',
+  DEST_2_CHANNEL: process.env.DEST_2_CHANNEL
+})
 const PORT = process.env.PORT || 8080
 await app.listen({ port: Number(PORT), host: '0.0.0.0' })
   .then(() => app.log.info(`Relay API escuchando en ${PORT}`))
