@@ -3,46 +3,46 @@ import rateLimit from '@fastify/rate-limit'
 import { fetch } from 'undici'
 import cors from '@fastify/cors'
 
+console.log('🟢 Iniciando servidor...')
+
 const app = Fastify({
   logger: { transport: { target: 'pino-pretty' } },
   trustProxy: true
 })
 
-
-
 await app.register(cors, {
-  origin: '*', // o ['http://localhost:5173', 'https://tu-dominio.com']
+  origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
   credentials: true
 })
-
+console.log('✅ CORS registrado')
 
 await app.register(rateLimit, {
   max: 500,
   timeWindow: 1000
 })
+console.log('✅ RateLimit registrado')
 
 const ENTRY_TOKEN = process.env.ENTRY_TOKEN || 'MI_TOKEN_SECRETO'
 
-// Middleware de autenticación
 app.addHook('onRequest', async (req, reply) => {
-  if (req.url === '/health') return // deja libre /health
-
+  console.log('🟡 onRequest', req.url)
+  if (req.url === '/health') return
   const auth = req.headers['authorization']
   if (!auth || auth !== `Bearer ${ENTRY_TOKEN}`) {
+    console.log('❌ No autorizado')
     return reply.code(401).send({ error: 'UNAUTHORIZED' })
   }
 })
 
-app.get('/health', async () => ({ ok: true, ts: Date.now() }))
+app.get('/health', async () => {
+  console.log('💓 Health OK')
+  return { ok: true, ts: Date.now() }
+})
 
 const phoneRegex = /^\+?[1-9]\d{7,14}$/
 
-// Puedes definir varios destinos en tu .env (DEST_1_URL, DEST_1_TOKEN, DEST_1_CHANNEL, etc.)
-// 🔁 Cargar dinámicamente todos los destinos definidos en .env
 const destinations = []
-
-// Siempre incluye el principal
 if (process.env.WATI_URL && process.env.WATI_TOKEN && process.env.CHANNEL_NUMBER) {
   destinations.push({
     url: process.env.WATI_URL,
@@ -50,8 +50,6 @@ if (process.env.WATI_URL && process.env.WATI_TOKEN && process.env.CHANNEL_NUMBER
     channel: process.env.CHANNEL_NUMBER
   })
 }
-
-// Buscar DEST_2, DEST_3, DEST_4... hasta que no haya más
 let i = 2
 while (process.env[`DEST_${i}_URL`]) {
   destinations.push({
@@ -61,12 +59,11 @@ while (process.env[`DEST_${i}_URL`]) {
   })
   i++
 }
-
 if (destinations.length === 0) {
   throw new Error('No hay destinos configurados en el .env')
 }
+console.log('📦 Destinos cargados:', destinations)
 
-// ⚡ Índice para round robin
 let currentIndex = 0
 
 app.post('/ingest', {
@@ -82,25 +79,26 @@ app.post('/ingest', {
     }
   }
 }, async (req, reply) => {
+  console.log('📩 POST /ingest recibido')
   const { phone, authCode } = req.body
+  console.log('📲 Datos:', phone, authCode)
 
   if (!phoneRegex.test(phone)) {
+    console.log('❌ Teléfono inválido')
     return reply.code(400).send({ error: 'PHONE_INVALID' })
   }
 
-  req.log.info({ phone, authCode }, 'Datos recibidos')
-
   try {
-    // ⚡ Elegir destino en turno (round robin)
     const dest = destinations[currentIndex]
     currentIndex = (currentIndex + 1) % destinations.length
-    req.log.info({ dest }, 'Usando destino configurado')
+    console.log('🚀 Enviando a destino:', dest.url)
+
     const payload = {
       template_name: 'codigo_de_verificacion',
       broadcast_name: 'codigo_de_verificacion',
       receivers: [
         {
-          whatsappNumber: phone.replace(/^\+/, ''), // quitar "+"
+          whatsappNumber: phone.replace(/^\+/, ''),
           customParams: [{ name: '1', value: authCode }]
         }
       ],
@@ -116,25 +114,21 @@ app.post('/ingest', {
       body: JSON.stringify(payload)
     })
 
+    console.log('📥 Status respuesta WATI:', res.status)
+
     const data = await res.json().catch(() => ({}))
+    console.log('📦 Data respuesta WATI:', data)
 
     if (!res.ok) {
-      req.log.error({ status: res.status, data }, `Error en ${dest.url}`)
+      console.log('❌ Error en destino')
       return reply.code(502).send({ error: 'WATI_ERROR', dest: dest.url, detail: data })
     }
 
-    req.log.info({ data }, `Mensaje enviado a ${dest.url}`)
+    console.log('✅ Mensaje enviado con éxito')
     return reply.code(200).send({ status: 'FORWARDED', dest: dest.url, data })
 
-    // 📝 (Antes enviaba a todos en bucle)
-    /*
-    const results = []
-    for (const dest of destinations) { ... }
-    return reply.code(200).send({ status: 'FORWARDED', results })
-    */
-
   } catch (err) {
-    req.log.error(err, 'Fallo en envío round robin')
+    console.log('💥 Error de envío:', err)
     return reply.code(500).send({ error: 'FETCH_FAILED' })
   }
 })
@@ -150,14 +144,12 @@ console.log('🌍 Variables cargadas:', {
   DEST_2_CHANNEL: process.env.DEST_2_CHANNEL
 })
 
-
 const PORT = process.env.PORT || 8080
 
 try {
   await app.listen({ port: Number(PORT), host: '0.0.0.0' })
-  app.log.info(`Relay API escuchando en ${PORT}`)
+  console.log(`✅ Servidor escuchando en puerto ${PORT}`)
 } catch (err) {
-  app.log.error(err)
+  console.log('💥 Error al iniciar servidor', err)
   process.exit(1)
 }
-
