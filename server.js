@@ -1,11 +1,21 @@
 import Fastify from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { fetch } from 'undici'
+import cors from '@fastify/cors'
 
 const app = Fastify({
   logger: { transport: { target: 'pino-pretty' } },
   trustProxy: true
 })
+
+
+
+await app.register(cors, {
+  origin: '*', // o ['http://localhost:5173', 'https://tu-dominio.com']
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true
+})
+
 
 await app.register(rateLimit, {
   max: 500,
@@ -84,7 +94,7 @@ app.post('/ingest', {
     // ⚡ Elegir destino en turno (round robin)
     const dest = destinations[currentIndex]
     currentIndex = (currentIndex + 1) % destinations.length
-    req.log.info({ dests: destinations }, 'Usando destinos configurados')
+    req.log.info({ dest }, 'Usando destino configurado')
     const payload = {
       template_name: 'codigo_de_verificacion',
       broadcast_name: 'codigo_de_verificacion',
@@ -128,6 +138,7 @@ app.post('/ingest', {
     return reply.code(500).send({ error: 'FETCH_FAILED' })
   }
 })
+
 console.log('🌍 Variables cargadas:', {
   PORT: process.env.PORT,
   ENTRY_TOKEN: process.env.ENTRY_TOKEN,
@@ -138,6 +149,8 @@ console.log('🌍 Variables cargadas:', {
   DEST_2_TOKEN: process.env.DEST_2_TOKEN ? '[OK]' : '[FALTA]',
   DEST_2_CHANNEL: process.env.DEST_2_CHANNEL
 })
+
+
 const PORT = process.env.PORT || 8080
 await app.listen({ port: Number(PORT), host: '0.0.0.0' })
 
