@@ -140,5 +140,6 @@ console.log('🌍 Variables cargadas:', {
 })
 const PORT = process.env.PORT || 8080
 await app.listen({ port: Number(PORT), host: '0.0.0.0' })
+
   .then(() => app.log.info(`Relay API escuchando en ${PORT}`))
   .catch(err => { app.log.error(err); process.exit(1) })
