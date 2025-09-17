@@ -25,6 +25,7 @@ console.log('✅ RateLimit registrado')
 
 const ENTRY_TOKEN = process.env.ENTRY_TOKEN || 'MI_TOKEN_SECRETO'
 
+// 🔐 Middleware de autenticación
 app.addHook('onRequest', async (req, reply) => {
   console.log('🟡 onRequest', req.url)
   if (req.url === '/health') return
@@ -42,6 +43,7 @@ app.get('/health', async () => {
 
 const phoneRegex = /^\+?[1-9]\d{7,14}$/
 
+// 📦 Cargar destinos desde .env
 const destinations = []
 if (process.env.WATI_URL && process.env.WATI_TOKEN && process.env.CHANNEL_NUMBER) {
   destinations.push({
@@ -144,6 +146,7 @@ console.log('🌍 Variables cargadas:', {
   DEST_2_CHANNEL: process.env.DEST_2_CHANNEL
 })
 
+// ⚡ Puerto dinámico (Railway inyecta PORT automáticamente)
 const PORT = process.env.PORT || 8080
 
 try {
