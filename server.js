@@ -84,7 +84,7 @@ app.post('/ingest', {
     // ⚡ Elegir destino en turno (round robin)
     const dest = destinations[currentIndex]
     currentIndex = (currentIndex + 1) % destinations.length
-
+    req.log.info({ dests: destinations }, 'Usando destinos configurados')
     const payload = {
       template_name: 'codigo_de_verificacion',
       broadcast_name: 'codigo_de_verificacion',
