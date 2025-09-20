@@ -1,7 +1,7 @@
+// server.js actualizado con test-external
 import Fastify from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import axios from 'axios'
-
 import cors from '@fastify/cors'
 
 console.log('🟢 Iniciando servidor...')
@@ -29,7 +29,7 @@ const ENTRY_TOKEN = process.env.ENTRY_TOKEN || 'MI_TOKEN_SECRETO'
 // 🔐 Middleware de autenticación
 app.addHook('onRequest', async (req, reply) => {
   console.log('🟡 onRequest', req.url)
-  if (req.url === '/health') return
+  if (['/health', '/test-external'].includes(req.url)) return
   const auth = req.headers['authorization']
   if (!auth || auth !== `Bearer ${ENTRY_TOKEN}`) {
     console.log('❌ No autorizado')
@@ -42,7 +42,7 @@ app.get('/health', async () => {
   return { ok: true, ts: Date.now() }
 })
 
-// 🧪 Prueba de salida a internet
+// 🧪 Prueba de salida externa
 app.get('/test-external', async (req, reply) => {
   try {
     const res = await axios.get('https://httpbin.org/get', { timeout: 3000 })
@@ -52,7 +52,6 @@ app.get('/test-external', async (req, reply) => {
     return reply.code(500).send({ ok: false, error: err.message })
   }
 })
-
 
 const phoneRegex = /^\+?[1-9]\d{7,14}$/
 
@@ -104,40 +103,39 @@ app.post('/ingest', {
   }
 
   try {
-  const dest = destinations[currentIndex]
-  currentIndex = (currentIndex + 1) % destinations.length
-  console.log('🚀 Enviando a destino:', dest.url)
+    const dest = destinations[currentIndex]
+    currentIndex = (currentIndex + 1) % destinations.length
+    console.log('🚀 Enviando a destino:', dest.url)
 
-  const payload = {
-    template_name: 'codigo_de_verificacion',
-    broadcast_name: 'codigo_de_verificacion',
-    receivers: [
-      {
-        whatsappNumber: phone.replace(/^\+/, ''),
-        customParams: [{ name: '1', value: authCode }]
-      }
-    ],
-    channel_number: dest.channel
+    const payload = {
+      template_name: 'codigo_de_verificacion',
+      broadcast_name: 'codigo_de_verificacion',
+      receivers: [
+        {
+          whatsappNumber: phone.replace(/^\+/, ''),
+          customParams: [{ name: '1', value: authCode }]
+        }
+      ],
+      channel_number: dest.channel
+    }
+
+    const res = await axios.post(dest.url, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${dest.token}`
+      },
+      timeout: 5000
+    })
+
+    const data = res.data
+    console.log('📦 Data respuesta WATI:', data)
+
+    return reply.code(200).send({ status: 'FORWARDED', dest: dest.url, data })
+
+  } catch (err) {
+    console.log('💥 Error de envío:', err.message)
+    return reply.code(500).send({ error: 'FETCH_FAILED', detail: err.message })
   }
-
-  const res = await axios.post(dest.url, payload, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${dest.token}`
-    },
-    timeout: 5000
-  })
-
-  const data = res.data
-  console.log('📦 Data respuesta WATI:', data)
-
-  return reply.code(200).send({ status: 'FORWARDED', dest: dest.url, data })
-
-} catch (err) {
-  console.log('💥 Error de envío:', err.message)
-  return reply.code(500).send({ error: 'FETCH_FAILED', detail: err.message })
-}
-
 })
 
 console.log('🌍 Variables cargadas:', {
@@ -151,7 +149,6 @@ console.log('🌍 Variables cargadas:', {
   DEST_2_CHANNEL: process.env.DEST_2_CHANNEL
 })
 
-// ⚡ Puerto dinámico (Railway inyecta PORT automáticamente)
 const PORT = process.env.PORT || 8080
 
 try {
@@ -161,4 +158,3 @@ try {
   console.log('💥 Error al iniciar servidor', err)
   process.exit(1)
 }
-
