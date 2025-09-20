@@ -42,6 +42,18 @@ app.get('/health', async () => {
   return { ok: true, ts: Date.now() }
 })
 
+// 🧪 Prueba de salida a internet
+app.get('/test-external', async (req, reply) => {
+  try {
+    const res = await axios.get('https://httpbin.org/get', { timeout: 3000 })
+    return { ok: true, status: res.status, data: res.data }
+  } catch (err) {
+    console.log('❌ Error en test-external:', err.message)
+    return reply.code(500).send({ ok: false, error: err.message })
+  }
+})
+
+
 const phoneRegex = /^\+?[1-9]\d{7,14}$/
 
 // 📦 Cargar destinos desde .env
@@ -149,3 +161,4 @@ try {
   console.log('💥 Error al iniciar servidor', err)
   process.exit(1)
 }
+
