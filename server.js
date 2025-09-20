@@ -1,5 +1,7 @@
 import Fastify from 'fastify'
 import rateLimit from '@fastify/rate-limit'
+import axios from 'axios'
+
 import cors from '@fastify/cors'
 
 console.log('🟢 Iniciando servidor...')
@@ -27,18 +29,12 @@ const ENTRY_TOKEN = process.env.ENTRY_TOKEN || 'MI_TOKEN_SECRETO'
 // 🔐 Middleware de autenticación
 app.addHook('onRequest', async (req, reply) => {
   console.log('🟡 onRequest', req.url)
-  if (req.url === '/health' || req.url === '/') return
+  if (req.url === '/health') return
   const auth = req.headers['authorization']
   if (!auth || auth !== `Bearer ${ENTRY_TOKEN}`) {
     console.log('❌ No autorizado')
     return reply.code(401).send({ error: 'UNAUTHORIZED' })
   }
-})
-
-// ✅ Ruta raíz para health-check
-app.get('/', async () => {
-  console.log('💓 Root OK')
-  return { ok: true, msg: 'Root alive' }
 })
 
 app.get('/health', async () => {
@@ -48,7 +44,31 @@ app.get('/health', async () => {
 
 const phoneRegex = /^\+?[1-9]\d{7,14}$/
 
-// ⚡ versión dummy sin fetch
+// 📦 Cargar destinos desde .env
+const destinations = []
+if (process.env.WATI_URL && process.env.WATI_TOKEN && process.env.CHANNEL_NUMBER) {
+  destinations.push({
+    url: process.env.WATI_URL,
+    token: process.env.WATI_TOKEN,
+    channel: process.env.CHANNEL_NUMBER
+  })
+}
+let i = 2
+while (process.env[`DEST_${i}_URL`]) {
+  destinations.push({
+    url: process.env[`DEST_${i}_URL`],
+    token: process.env[`DEST_${i}_TOKEN`],
+    channel: process.env[`DEST_${i}_CHANNEL`]
+  })
+  i++
+}
+if (destinations.length === 0) {
+  throw new Error('No hay destinos configurados en el .env')
+}
+console.log('📦 Destinos cargados:', destinations)
+
+let currentIndex = 0
+
 app.post('/ingest', {
   schema: {
     body: {
@@ -71,15 +91,55 @@ app.post('/ingest', {
     return reply.code(400).send({ error: 'PHONE_INVALID' })
   }
 
-  console.log('✅ Dummy: procesado correctamente')
-  return reply.code(200).send({ status: 'OK', phone, authCode })
+  try {
+  const dest = destinations[currentIndex]
+  currentIndex = (currentIndex + 1) % destinations.length
+  console.log('🚀 Enviando a destino:', dest.url)
+
+  const payload = {
+    template_name: 'codigo_de_verificacion',
+    broadcast_name: 'codigo_de_verificacion',
+    receivers: [
+      {
+        whatsappNumber: phone.replace(/^\+/, ''),
+        customParams: [{ name: '1', value: authCode }]
+      }
+    ],
+    channel_number: dest.channel
+  }
+
+  const res = await axios.post(dest.url, payload, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${dest.token}`
+    },
+    timeout: 5000
+  })
+
+  const data = res.data
+  console.log('📦 Data respuesta WATI:', data)
+
+  return reply.code(200).send({ status: 'FORWARDED', dest: dest.url, data })
+
+} catch (err) {
+  console.log('💥 Error de envío:', err.message)
+  return reply.code(500).send({ error: 'FETCH_FAILED', detail: err.message })
+}
+
 })
 
 console.log('🌍 Variables cargadas:', {
   PORT: process.env.PORT,
-  ENTRY_TOKEN: process.env.ENTRY_TOKEN
+  ENTRY_TOKEN: process.env.ENTRY_TOKEN,
+  WATI_URL: process.env.WATI_URL,
+  WATI_TOKEN: process.env.WATI_TOKEN ? '[OK]' : '[FALTA]',
+  CHANNEL_NUMBER: process.env.CHANNEL_NUMBER,
+  DEST_2_URL: process.env.DEST_2_URL,
+  DEST_2_TOKEN: process.env.DEST_2_TOKEN ? '[OK]' : '[FALTA]',
+  DEST_2_CHANNEL: process.env.DEST_2_CHANNEL
 })
 
+// ⚡ Puerto dinámico (Railway inyecta PORT automáticamente)
 const PORT = process.env.PORT || 8080
 
 try {
