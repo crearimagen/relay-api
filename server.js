@@ -108,8 +108,8 @@ app.post('/ingest', {
     console.log('🚀 Enviando a destino:', dest.url)
 
     const payload = {
-      template_name: 'codigo_de_verificacion',
-      broadcast_name: 'codigo_de_verificacion',
+      template_name: 'cod_otp',
+      broadcast_name: 'cod_otp',
       receivers: [
         {
           whatsappNumber: phone.replace(/^\+/, ''),
@@ -158,3 +158,4 @@ try {
   console.log('💥 Error al iniciar servidor', err)
   process.exit(1)
 }
+
